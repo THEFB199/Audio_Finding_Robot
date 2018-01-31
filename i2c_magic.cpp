@@ -13,11 +13,19 @@ int main(){
     float mic1, mic2, mic3;
 	
 	connect(&file_i2c);
-	
-	test = read_float(10, &file_i2c);
-    printf("%f\n", test);
+	write_mbed('1', &file_i2c);
+	mic1 = read_float(10, &file_i2c);
+    printf("%f\n", mic1);
 
-	write_mbed('a', &file_i2c);
+    write_mbed('2', &file_i2c);
+	mic2 = read_float(20, &file_i2c);
+    printf("%f\n", mic2);
+
+    write_mbed('3', &file_i2c);
+	mic3 = read_float(20, &file_i2c);
+    printf("%f\n", mic3);
+
+	write_mbed('E', &file_i2c);
 }
 
 void connect(int *file_i2c){
