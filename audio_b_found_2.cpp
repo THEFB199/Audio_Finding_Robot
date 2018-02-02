@@ -6,7 +6,7 @@
 #include <stdlib.h>
 
 #define sample_time 0.0100
-#define buffer_length 1024
+#define buffer_length 16380
 #include <time.h>
 #include <iostream>
 #include <complex>
@@ -16,7 +16,7 @@ typedef complex<double> Complex;
 typedef valarray<Complex> CArray;
 const double PI = 3.141592653589793238460; // Pi constant with double precision
 
-#define i2c_addr 0x50
+#define i2c_addr 0x50 // address of the mbed sudo i2cdetect -y 0
 
 void connect(int * file_i2c);
 void write_mbed(char data, int *file_i2c);
@@ -26,20 +26,21 @@ void fft(CArray &x);
 int main(){
     int file_i2c;
     float mic1, mic2, mic3;
-    connect(&file_i2c);
-    write_mbed('1', &file_i2c);
+    connect(&file_i2c); // establish connection with mbed
+    write_mbed('1', &file_i2c); // initialise and synchronise data aquistion on mbed
 
     clock_t time;
 	double duration;
 	float r;
 	cout << "Proggy Start\n";
-
-	Complex mic_data_1[buffer_length]={0};
-	Complex mic_data_2[buffer_length];
-	Complex mic_data_3[buffer_length];
+    // complex arrays for each microphone for FFT done later
+	Complex mic_data_1[buffer_length]={0}; // initialise to zero for ease of FFT 
+	Complex mic_data_2[buffer_length]={0};
+	Complex mic_data_3[buffer_length]={0};
 	int i = 0;
     float done;
-	time = clock();
+	time = clock(); // begin timer
+    // start data acqusition from mbed (due to no analogue inputs on pi)
 	while (i < buffer_length) {
 
 	    mic1 = read_float(10, &file_i2c);
@@ -52,11 +53,11 @@ int main(){
 	    mic3 = read_float(10, &file_i2c);
 		mic_data_3[i] = (Complex) mic2;
 		i++;
-        done  = (float)i / (float)1024;
+        done  = (float)i / (float)buffer_length; // how far through data collection are we?
         printf("Progress:: %f \r", done);
 		//sleep (1);
 	}
-    cout << endl;
+    // CArray needed for compatibility with FFT algorithm used.
 	CArray data(mic_data_1, buffer_length);
 	CArray data1(mic_data_2, buffer_length);
 	CArray data2(mic_data_3, buffer_length);
@@ -65,7 +66,7 @@ int main(){
 	fft(data1);
 	fft(data2);
 
-	duration = (clock() - time) / (double)CLOCKS_PER_SEC;
+	duration = (clock() - time) / (double)CLOCKS_PER_SEC; // time run - note does not seem to time data collection correctly
 	cout << i << "\t time taken:: " << duration << endl;
     for (int i = 0; i < buffer_length; ++i)
     {
@@ -99,7 +100,6 @@ void connect(int *file_i2c){
 float read_float(int length, int *file_i2c){
     char buffer1[10] = {0};
 	//----- READ BYTES -----
-	//length = 10;			//<<< Number of bytes to read
 	if (read(*file_i2c, buffer1, length) != length)		//read() returns the number of  bytes actually read, if it doesn't match then an error occurred (e.g. no response from the device)
 	{
 		//ERROR HANDLING: i2c transaction failed
@@ -107,8 +107,7 @@ float read_float(int length, int *file_i2c){
 	}
 	else
 	{
-		//printf("Data read: %s\n", buffer1);
-        return(atof(buffer1));
+        return(atof(buffer1)); // return floating point number for data later - data is recieved as a char. 
 	}
 }
 
