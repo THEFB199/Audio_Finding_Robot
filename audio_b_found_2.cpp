@@ -6,11 +6,12 @@
 #include <stdlib.h>
 
 #define sample_time 0.0100
-#define buffer_length 16380
+#define buffer_length 8192
 #include <time.h>
 #include <iostream>
 #include <complex>
 #include <valarray>
+#include <math.h>
 using namespace std;
 typedef complex<double> Complex;
 typedef valarray<Complex> CArray;
@@ -22,10 +23,10 @@ void connect(int * file_i2c);
 void write_mbed(char data, int *file_i2c);
 float read_float(int length, int *file_i2c);
 void fft(CArray &x);
-
+void data_collection (Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3, int *file_i2c);
+void power_calc(Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3);
 int main(){
     int file_i2c;
-    float mic1, mic2, mic3;
     connect(&file_i2c); // establish connection with mbed
     write_mbed('1', &file_i2c); // initialise and synchronise data aquistion on mbed
 
@@ -37,44 +38,30 @@ int main(){
 	Complex mic_data_1[buffer_length]={0}; // initialise to zero for ease of FFT 
 	Complex mic_data_2[buffer_length]={0};
 	Complex mic_data_3[buffer_length]={0};
-	int i = 0;
-    float done;
+	
 	time = clock(); // begin timer
-    // start data acqusition from mbed (due to no analogue inputs on pi)
-	while (i < buffer_length) {
-
-	    mic1 = read_float(10, &file_i2c);
-		mic_data_1[i] = (Complex) mic1;
-
-	    mic2 = read_float(10, &file_i2c);
-        mic_data_2[i] = (Complex) mic2;
-
-
-	    mic3 = read_float(10, &file_i2c);
-		mic_data_3[i] = (Complex) mic2;
-		i++;
-        done  = (float)i / (float)buffer_length; // how far through data collection are we?
-        printf("Progress:: %f \r", done);
-		//sleep (1);
-	}
+	
+	data_collection (mic_data_1, mic_data_2, mic_data_3, &file_i2c);
+	
+	duration = (clock() - time)/ (double)CLOCKS_PER_SEC; // time run - note does not
+    cout << "\t time taken:: " << duration << endl;
     // CArray needed for compatibility with FFT algorithm used.
 	CArray data(mic_data_1, buffer_length);
 	CArray data1(mic_data_2, buffer_length);
 	CArray data2(mic_data_3, buffer_length);
+	time = clock(); // begin timer
 	// compute fft for this data
 	fft(data);
 	fft(data1);
 	fft(data2);
-
+    power_calc(mic_data_1, mic_data_2, mic_data_3);
 	duration = (clock() - time) / (double)CLOCKS_PER_SEC; // time run - note does not seem to time data collection correctly
-	cout << i << "\t time taken:: " << duration << endl;
-    for (int i = 0; i < buffer_length; ++i)
-    {
-      cout << data[i] << endl;
-    }
+	cout << "\t time taken:: " << duration << endl;
+    //for (int i = 0; i < buffer_length; ++i)
+    //{
+     // cout << data[i] << endl;
+    //}
     //
-    duration = (clock() - time) / (double)CLOCKS_PER_SEC;
-    cout << i << "\t time " << duration << endl;
 }
 
 void connect(int *file_i2c){
@@ -176,4 +163,41 @@ void fft(CArray &x)
 	//	x[i] *= f;
 }
 
+void data_collection (Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3, int *file_i2c){
 
+    int i = 0;
+    float mic1, mic2, mic3;
+    //int 
+    
+    float done;
+
+	
+    // start data acqusition from mbed (due to no analogue inputs on pi)
+	while (i < buffer_length) {
+
+	    mic1 = read_float(10, file_i2c);
+		mic_data_1[i] = (Complex) mic1;
+
+	    mic2 = read_float(10, file_i2c);
+        mic_data_2[i] = (Complex) mic2;
+
+
+	    mic3 = read_float(10, file_i2c);
+		mic_data_3[i] = (Complex) mic2;
+		i++;
+        done  = (float)i / (float)buffer_length; // how far through data collection are we?
+        printf("Progress:: %f \r", done*100);
+		//sleep (1);
+	}
+
+}
+
+void power_calc(Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3){
+    
+    double power_mic_1 = sqrt( pow(mic_data_1[410].real(), 2.0) + pow(mic_data_1[410].imag(), 2.0) );
+    double power_mic_2 = sqrt( pow(mic_data_2[410].real(), 2.0) + pow(mic_data_2[410].imag(), 2.0) );
+    double power_mic_3 = sqrt( pow(mic_data_3[410].real(), 2.0) + pow(mic_data_3[410].imag(), 2.0) );
+
+    cout << power_mic_1 << endl;
+
+}
