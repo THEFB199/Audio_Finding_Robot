@@ -44,7 +44,7 @@ int main(){
 	data_collection (mic_data_1, mic_data_2, mic_data_3, &file_i2c);
 	
 	duration = (clock() - time)/ (double)CLOCKS_PER_SEC; // time run - note does not
-    cout << "\t time taken:: " << duration << endl;
+    cout << " time taken:: " << duration << endl;
     // CArray needed for compatibility with FFT algorithm used.
 	CArray data(mic_data_1, buffer_length);
 	CArray data1(mic_data_2, buffer_length);
@@ -56,7 +56,7 @@ int main(){
 	fft(data2);
     power_calc(mic_data_1, mic_data_2, mic_data_3);
 	duration = (clock() - time) / (double)CLOCKS_PER_SEC; // time run - note does not seem to time data collection correctly
-	cout << "\t time taken:: " << duration << endl;
+	cout << " time taken:: " << duration << endl;
     //for (int i = 0; i < buffer_length; ++i)
     //{
      // cout << data[i] << endl;
