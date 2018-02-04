@@ -25,6 +25,7 @@ float read_float(int length, int *file_i2c);
 void fft(CArray &x);
 void data_collection (Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3, int *file_i2c);
 void power_calc(Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3);
+int index_pos(int n, int freq_low, int freq_high, int sample_freq)
 int main(){
     int file_i2c;
     connect(&file_i2c); // establish connection with mbed
@@ -57,10 +58,10 @@ int main(){
     power_calc(mic_data_1, mic_data_2, mic_data_3);
 	duration = (clock() - time) / (double)CLOCKS_PER_SEC; // time run - note does not seem to time data collection correctly
 	cout << " time taken:: " << duration << endl;
-    //for (int i = 0; i < buffer_length; ++i)
-    //{
-     // cout << data[i] << endl;
-    //}
+    for (int i = 0; i < buffer_length; ++i)
+    {
+      cout << data[i] << endl;
+    }
     //
 }
 
@@ -192,12 +193,32 @@ void data_collection (Complex *mic_data_1, Complex *mic_data_2, Complex *mic_dat
 
 }
 
-void power_calc(Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3){
+void power_calc(Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3, int index_pos){
     
-    double power_mic_1 = sqrt( pow(mic_data_1[410].real(), 2.0) + pow(mic_data_1[410].imag(), 2.0) );
-    double power_mic_2 = sqrt( pow(mic_data_2[410].real(), 2.0) + pow(mic_data_2[410].imag(), 2.0) );
-    double power_mic_3 = sqrt( pow(mic_data_3[410].real(), 2.0) + pow(mic_data_3[410].imag(), 2.0) );
+    double power_mic_1 = sqrt( pow(mic_data_1[index_pos].real(), 2.0) + pow(mic_data_1[index_pos].imag(), 2.0) );
+    double power_mic_2 = sqrt( pow(mic_data_2[index_pos].real(), 2.0) + pow(mic_data_2[index_pos].imag(), 2.0) );
+    double power_mic_3 = sqrt( pow(mic_data_3[index_pos].real(), 2.0) + pow(mic_data_3[index_pos].imag(), 2.0) );
 
-    cout << power_mic_1 << endl;
+    //cout << power_mic_1 << endl;
+
+}
+
+int index_pos(int n, int freq_low, int freq_high, int sample_freq){
+
+    /* calculates index positions required for finding the specific
+    frequency from the FFT. A range is presented here.
+    This is because band pass filter centred around 2.4 kHz has width of 
+    around 400 Hz 
+    
+    n = sample size
+    sample_freq = sampling frequnecy used in data collection
+    freq_low = lower frequency wanted
+    freq_high = higher frequecny wanted
+    */
+    
+    int lower_pos = n*(freq_low/sample_freq); 
+    int upper_pos = n*(freq_high/sample_freq);
+    
+    return (lower_pos, upper_pos);
 
 }
