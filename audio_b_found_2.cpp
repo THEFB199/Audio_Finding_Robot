@@ -5,8 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define sample_time 0.0100
-#define buffer_length 8192
+//#define sample_time 0.0100
+#define buffer_length 1024
 #include <time.h>
 #include <iostream>
 #include <complex>
@@ -24,8 +24,9 @@ void write_mbed(char data, int *file_i2c);
 float read_float(int length, int *file_i2c);
 void fft(CArray &x);
 void data_collection (Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3, int *file_i2c);
-void power_calc(Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3);
-int index_pos(int n, int freq_low, int freq_high, int sample_freq)
+void power_calc(Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3, int index_pos);
+int index_pos(int n, int freq_low, int freq_high, double sample_freq);
+
 int main(){
     int file_i2c;
     connect(&file_i2c); // establish connection with mbed
@@ -33,6 +34,7 @@ int main(){
 
     clock_t time;
 	double duration;
+	int data_test[2] = {0};
 	float r;
 	cout << "Proggy Start\n";
     // complex arrays for each microphone for FFT done later
@@ -40,12 +42,13 @@ int main(){
 	Complex mic_data_2[buffer_length]={0};
 	Complex mic_data_3[buffer_length]={0};
 	
-	time = clock(); // begin timer
+	time = clock(); // begin timerp
 	
 	data_collection (mic_data_1, mic_data_2, mic_data_3, &file_i2c);
 	
 	duration = (clock() - time)/ (double)CLOCKS_PER_SEC; // time run - note does not
     cout << " time taken:: " << duration << endl;
+    double sample_freq = (double)buffer_length/duration;
     // CArray needed for compatibility with FFT algorithm used.
 	CArray data(mic_data_1, buffer_length);
 	CArray data1(mic_data_2, buffer_length);
@@ -55,13 +58,20 @@ int main(){
 	fft(data);
 	fft(data1);
 	fft(data2);
-    power_calc(mic_data_1, mic_data_2, mic_data_3);
+	
+	*data_test = index_pos(buffer_length, 2200, 2600, sample_freq);
+	cout << data_test[0] << endl; // not translating data correclty
+	cout << data_test[1] << endl;
+    //power_calc(&data, &data1, &data2,0);
 	duration = (clock() - time) / (double)CLOCKS_PER_SEC; // time run - note does not seem to time data collection correctly
 	cout << " time taken:: " << duration << endl;
-    for (int i = 0; i < buffer_length; ++i)
+	Complex test = data[4];
+	cout << data[3].real() << endl << data[3].imag() << endl;
+    /*for (int i = 0; i < buffer_length; ++i)
     {
       cout << data[i] << endl;
-    }
+    }*/
+
     //
 }
 
@@ -203,7 +213,7 @@ void power_calc(Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3, i
 
 }
 
-int index_pos(int n, int freq_low, int freq_high, int sample_freq){
+int index_pos(int n, int freq_low, int freq_high, double sample_freq){
 
     /* calculates index positions required for finding the specific
     frequency from the FFT. A range is presented here.
@@ -215,10 +225,12 @@ int index_pos(int n, int freq_low, int freq_high, int sample_freq){
     freq_low = lower frequency wanted
     freq_high = higher frequecny wanted
     */
+    int bounds[2] ={0};
+    bounds[0] = (int)((double)n*((double)freq_low/sample_freq));
+    cout << "lower" << bounds[0] << endl;
+    bounds[1] = (int)((double)n*((double)freq_high/sample_freq));
+    cout << "up" << bounds[1] << endl;
     
-    int lower_pos = n*(freq_low/sample_freq); 
-    int upper_pos = n*(freq_high/sample_freq);
-    
-    return (lower_pos, upper_pos);
+    return (*bounds);
 
 }
