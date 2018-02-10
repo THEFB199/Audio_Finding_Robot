@@ -25,7 +25,7 @@ float read_float(int length, int *file_i2c);
 void fft(CArray &x);
 void data_collection (Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3, int *file_i2c);
 void power_calc(Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3, int index_pos);
-int index_pos(int n, int freq_low, int freq_high, double sample_freq);
+void index_pos(int n, int freq_low, int freq_high, double sample_freq, int *bounds);
 
 int main(){
     int file_i2c;
@@ -59,14 +59,14 @@ int main(){
 	fft(data1);
 	fft(data2);
 	
-	*data_test = index_pos(buffer_length, 2200, 2600, sample_freq);
-	cout << data_test[0] << endl; // not translating data correclty
-	cout << data_test[1] << endl;
+	index_pos(buffer_length, 2200, 2600, sample_freq, data_test);
+	cout << data_test[0] << " " << data_test[1] << endl;
+	for ( int i = data_test[0]; i <= data_test[1]; i++){
+	    power_calc(&data[i], &data1[i], &data2[i], data_test[0]);
+	}
     //power_calc(&data, &data1, &data2,0);
 	duration = (clock() - time) / (double)CLOCKS_PER_SEC; // time run - note does not seem to time data collection correctly
 	cout << " time taken:: " << duration << endl;
-	Complex test = data[4];
-	cout << data[3].real() << endl << data[3].imag() << endl;
     /*for (int i = 0; i < buffer_length; ++i)
     {
       cout << data[i] << endl;
@@ -194,7 +194,7 @@ void data_collection (Complex *mic_data_1, Complex *mic_data_2, Complex *mic_dat
 
 
 	    mic3 = read_float(10, file_i2c);
-		mic_data_3[i] = (Complex) mic2;
+		mic_data_3[i] = (Complex) mic3;
 		i++;
         done  = (float)i / (float)buffer_length; // how far through data collection are we?
         printf("Progress:: %f \r", done*100);
@@ -210,10 +210,12 @@ void power_calc(Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3, i
     double power_mic_3 = sqrt( pow(mic_data_3[index_pos].real(), 2.0) + pow(mic_data_3[index_pos].imag(), 2.0) );
 
     //cout << power_mic_1 << endl;
+    //cout << power_mic_2 << endl;
+    //cout << power_mic_3 << endl;
 
 }
 
-int index_pos(int n, int freq_low, int freq_high, double sample_freq){
+void index_pos(int n, int freq_low, int freq_high, double sample_freq, int *bounds){
 
     /* calculates index positions required for finding the specific
     frequency from the FFT. A range is presented here.
@@ -225,12 +227,11 @@ int index_pos(int n, int freq_low, int freq_high, double sample_freq){
     freq_low = lower frequency wanted
     freq_high = higher frequecny wanted
     */
-    int bounds[2] ={0};
+    //int bounds[2] ={0};
     bounds[0] = (int)((double)n*((double)freq_low/sample_freq));
-    cout << "lower" << bounds[0] << endl;
+    //cout << "lower" << bounds[0] << endl;
     bounds[1] = (int)((double)n*((double)freq_high/sample_freq));
-    cout << "up" << bounds[1] << endl;
+    //cout << "up" << bounds[1] << endl;
     
-    return (*bounds);
 
 }
