@@ -1,4 +1,4 @@
-#include <unistd.h>				//Needed for I2C port
+ #include <unistd.h>				//Needed for I2C port
 #include <fcntl.h>				//Needed for I2C port
 #include <sys/ioctl.h>			//Needed for I2C port
 #include <linux/i2c-dev.h>		//Needed for I2C port
@@ -24,8 +24,10 @@ void write_mbed(char data, int *file_i2c);
 float read_float(int length, int *file_i2c);
 void fft(CArray &x);
 void data_collection (Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3, int *file_i2c);
-void power_calc(Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3, int index_pos);
+void power_calc(Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3, int index_pos, double *power);
 void index_pos(int n, int freq_low, int freq_high, double sample_freq, int *bounds);
+int direction(double *powers);
+void control(); // to make main less messy.
 
 int main(){
     int file_i2c;
@@ -35,6 +37,8 @@ int main(){
     clock_t time;
 	double duration;
 	int data_test[2] = {0};
+	double power[3] = {0};
+	double av_power[3] = {0};
 	float r;
 	cout << "Proggy Start\n";
     // complex arrays for each microphone for FFT done later
@@ -49,22 +53,40 @@ int main(){
 	duration = (clock() - time)/ (double)CLOCKS_PER_SEC; // time run - note does not
     cout << " time taken:: " << duration << endl;
     double sample_freq = (double)buffer_length/duration;
+    
+    
     // CArray needed for compatibility with FFT algorithm used.
 	CArray data(mic_data_1, buffer_length);
 	CArray data1(mic_data_2, buffer_length);
 	CArray data2(mic_data_3, buffer_length);
 	time = clock(); // begin timer
+
 	// compute fft for this data
 	fft(data);
 	fft(data1);
 	fft(data2);
 	
+	
+	// Calculate power of each microphone.
+	// Using average from frequcnies set out in index pos function.
+	// Average claculation may be incorrect !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	index_pos(buffer_length, 2200, 2600, sample_freq, data_test);
 	cout << data_test[0] << " " << data_test[1] << endl;
 	for ( int i = data_test[0]; i <= data_test[1]; i++){
-	    power_calc(&data[i], &data1[i], &data2[i], data_test[0]);
+	    power_calc(&data[i], &data1[i], &data2[i], i, power);
+        av_power[0] =  av_power[0] + power[0];
+        av_power[1] =  av_power[1] + power[1];
+        av_power[2] =  av_power[2] + power[2];
 	}
-    //power_calc(&data, &data1, &data2,0);
+	// Taking the average
+	av_power[0] = av_power[0]/(double)(data_test[1]-data_test[0]);
+    av_power[1] = av_power[1]/(double)(data_test[1]-data_test[0]);
+    av_power[2] = av_power[2]/(double)(data_test[1]-data_test[0]);
+
+    // Decide the direction to travel.
+    direction(av_power);
+    
+
 	duration = (clock() - time) / (double)CLOCKS_PER_SEC; // time run - note does not seem to time data collection correctly
 	cout << " time taken:: " << duration << endl;
     /*for (int i = 0; i < buffer_length; ++i)
@@ -203,14 +225,14 @@ void data_collection (Complex *mic_data_1, Complex *mic_data_2, Complex *mic_dat
 
 }
 
-void power_calc(Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3, int index_pos){
+void power_calc(Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3, int index_pos, double *power){
     
-    double power_mic_1 = sqrt( pow(mic_data_1[index_pos].real(), 2.0) + pow(mic_data_1[index_pos].imag(), 2.0) );
-    double power_mic_2 = sqrt( pow(mic_data_2[index_pos].real(), 2.0) + pow(mic_data_2[index_pos].imag(), 2.0) );
-    double power_mic_3 = sqrt( pow(mic_data_3[index_pos].real(), 2.0) + pow(mic_data_3[index_pos].imag(), 2.0) );
+    power[0] = sqrt( pow(mic_data_1[index_pos].real(), 2.0) + pow(mic_data_1[index_pos].imag(), 2.0) );
+    power[1] = sqrt( pow(mic_data_2[index_pos].real(), 2.0) + pow(mic_data_2[index_pos].imag(), 2.0) );
+    power[2] = sqrt( pow(mic_data_3[index_pos].real(), 2.0) + pow(mic_data_3[index_pos].imag(), 2.0) );
 
     //cout << power_mic_1 << endl;
-    //cout << power_mic_2 << endl;
+    //cout << power[1]<< endl;
     //cout << power_mic_3 << endl;
 
 }
@@ -233,5 +255,101 @@ void index_pos(int n, int freq_low, int freq_high, double sample_freq, int *boun
     bounds[1] = (int)((double)n*((double)freq_high/sample_freq));
     //cout << "up" << bounds[1] << endl;
     
+
+}
+
+int direction(double *powers){
+    
+    //powers[0] - mic 1 ( front left )
+    //powers[1] - mic 2 ( front right )
+    //powers[2] - mic 3 ( back middle )
+
+    if(powers[0] > powers[1]){ // should we go left or right?
+    
+        cout << "left" << endl; 
+        // code to send to robot
+    }
+    else if(powers[1] > powers[0]){
+    
+        cout << "right" << endl;
+        // code to send to robot
+    }
+    else if(powers[1] == powers[0]){
+    
+        cout << "forwards!" << endl;
+    }
+    else if((powers[2] > powers[0]) && (powers[2] > powers[1])){ // robot facing wrong way
+    
+        cout << "backwards!" << endl;
+    }
+    
+
+}
+
+void control(){
+
+write_mbed('1', &file_i2c); // initialise and synchronise data aquistion on mbed
+
+    clock_t time;
+	double duration;
+	int data_test[2] = {0};
+	double power[3] = {0};
+	double av_power[3] = {0};
+	float r;
+	cout << "Proggy Start\n";
+    // complex arrays for each microphone for FFT done later
+	Complex mic_data_1[buffer_length]={0}; // initialise to zero for ease of FFT 
+	Complex mic_data_2[buffer_length]={0};
+	Complex mic_data_3[buffer_length]={0};
+	
+	time = clock(); // begin timerp
+	
+	data_collection (mic_data_1, mic_data_2, mic_data_3, &file_i2c);
+	
+	duration = (clock() - time)/ (double)CLOCKS_PER_SEC; // time run - note does not
+    cout << " time taken:: " << duration << endl;
+    double sample_freq = (double)buffer_length/duration;
+    
+    
+    // CArray needed for compatibility with FFT algorithm used.
+	CArray data(mic_data_1, buffer_length);
+	CArray data1(mic_data_2, buffer_length);
+	CArray data2(mic_data_3, buffer_length);
+	time = clock(); // begin timer
+
+	// compute fft for this data
+	fft(data);
+	fft(data1);
+	fft(data2);
+	
+	
+	// Calculate power of each microphone.
+	// Using average from frequcnies set out in index pos function.
+	// Average claculation may be incorrect !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	index_pos(buffer_length, 2200, 2600, sample_freq, data_test);
+	cout << data_test[0] << " " << data_test[1] << endl;
+	for ( int i = data_test[0]; i <= data_test[1]; i++){
+	    power_calc(&data[i], &data1[i], &data2[i], i, power);
+        av_power[0] =  av_power[0] + power[0];
+        av_power[1] =  av_power[1] + power[1];
+        av_power[2] =  av_power[2] + power[2];
+	}
+	// Taking the average
+	av_power[0] = av_power[0]/(double)(data_test[1]-data_test[0]);
+    av_power[1] = av_power[1]/(double)(data_test[1]-data_test[0]);
+    av_power[2] = av_power[2]/(double)(data_test[1]-data_test[0]);
+
+    // Decide the direction to travel.
+    direction(av_power);
+    
+
+	duration = (clock() - time) / (double)CLOCKS_PER_SEC; // time run - note does not seem to time data collection correctly
+	cout << " time taken:: " << duration << endl;
+    /*for (int i = 0; i < buffer_length; ++i)
+    {
+      cout << data[i] << endl;
+    }*/
+
+    //
 
 }
