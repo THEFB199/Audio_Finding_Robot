@@ -6,7 +6,7 @@
 #include <stdlib.h>
 
 //#define sample_time 0.0100
-#define buffer_length 1024
+#define buffer_length 256
 #include <time.h>
 #include <iostream>
 #include <complex>
@@ -27,74 +27,20 @@ void data_collection (Complex *mic_data_1, Complex *mic_data_2, Complex *mic_dat
 void power_calc(Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3, int index_pos, double *power);
 void index_pos(int n, int freq_low, int freq_high, double sample_freq, int *bounds);
 int direction(double *powers);
-void control(); // to make main less messy.
+void control(int file_i2c); // to make main less messy.
 
 int main(){
+    cout << "Proggy Start" << endl;
+    cout << "Connect to mbed" << endl;
     int file_i2c;
     connect(&file_i2c); // establish connection with mbed
-    write_mbed('1', &file_i2c); // initialise and synchronise data aquistion on mbed
-
-    clock_t time;
-	double duration;
-	int data_test[2] = {0};
-	double power[3] = {0};
-	double av_power[3] = {0};
-	float r;
-	cout << "Proggy Start\n";
-    // complex arrays for each microphone for FFT done later
-	Complex mic_data_1[buffer_length]={0}; // initialise to zero for ease of FFT 
-	Complex mic_data_2[buffer_length]={0};
-	Complex mic_data_3[buffer_length]={0};
-	
-	time = clock(); // begin timerp
-	
-	data_collection (mic_data_1, mic_data_2, mic_data_3, &file_i2c);
-	
-	duration = (clock() - time)/ (double)CLOCKS_PER_SEC; // time run - note does not
-    cout << " time taken:: " << duration << endl;
-    double sample_freq = (double)buffer_length/duration;
+    cout << "connection established" << endl;
     
+    while(1){
     
-    // CArray needed for compatibility with FFT algorithm used.
-	CArray data(mic_data_1, buffer_length);
-	CArray data1(mic_data_2, buffer_length);
-	CArray data2(mic_data_3, buffer_length);
-	time = clock(); // begin timer
-
-	// compute fft for this data
-	fft(data);
-	fft(data1);
-	fft(data2);
-	
-	
-	// Calculate power of each microphone.
-	// Using average from frequcnies set out in index pos function.
-	// Average claculation may be incorrect !!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	index_pos(buffer_length, 2200, 2600, sample_freq, data_test);
-	cout << data_test[0] << " " << data_test[1] << endl;
-	for ( int i = data_test[0]; i <= data_test[1]; i++){
-	    power_calc(&data[i], &data1[i], &data2[i], i, power);
-        av_power[0] =  av_power[0] + power[0];
-        av_power[1] =  av_power[1] + power[1];
-        av_power[2] =  av_power[2] + power[2];
-	}
-	// Taking the average
-	av_power[0] = av_power[0]/(double)(data_test[1]-data_test[0]);
-    av_power[1] = av_power[1]/(double)(data_test[1]-data_test[0]);
-    av_power[2] = av_power[2]/(double)(data_test[1]-data_test[0]);
-
-    // Decide the direction to travel.
-    direction(av_power);
+        control(file_i2c);
     
-
-	duration = (clock() - time) / (double)CLOCKS_PER_SEC; // time run - note does not seem to time data collection correctly
-	cout << " time taken:: " << duration << endl;
-    /*for (int i = 0; i < buffer_length; ++i)
-    {
-      cout << data[i] << endl;
-    }*/
-
-    //
+    }
 }
 
 void connect(int *file_i2c){
@@ -286,9 +232,9 @@ int direction(double *powers){
 
 }
 
-void control(){
+void control(int file_i2c){
 
-write_mbed('1', &file_i2c); // initialise and synchronise data aquistion on mbed
+    write_mbed('1', &file_i2c); // initialise and synchronise data aquistion on mbed
 
     clock_t time;
 	double duration;
@@ -296,7 +242,6 @@ write_mbed('1', &file_i2c); // initialise and synchronise data aquistion on mbed
 	double power[3] = {0};
 	double av_power[3] = {0};
 	float r;
-	cout << "Proggy Start\n";
     // complex arrays for each microphone for FFT done later
 	Complex mic_data_1[buffer_length]={0}; // initialise to zero for ease of FFT 
 	Complex mic_data_2[buffer_length]={0};
@@ -307,7 +252,7 @@ write_mbed('1', &file_i2c); // initialise and synchronise data aquistion on mbed
 	data_collection (mic_data_1, mic_data_2, mic_data_3, &file_i2c);
 	
 	duration = (clock() - time)/ (double)CLOCKS_PER_SEC; // time run - note does not
-    cout << " time taken:: " << duration << endl;
+    cout << "time taken:: " << duration << endl;
     double sample_freq = (double)buffer_length/duration;
     
     
@@ -327,7 +272,7 @@ write_mbed('1', &file_i2c); // initialise and synchronise data aquistion on mbed
 	// Using average from frequcnies set out in index pos function.
 	// Average claculation may be incorrect !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	index_pos(buffer_length, 2200, 2600, sample_freq, data_test);
-	cout << data_test[0] << " " << data_test[1] << endl;
+	//cout << data_test[0] << " " << data_test[1] << endl;
 	for ( int i = data_test[0]; i <= data_test[1]; i++){
 	    power_calc(&data[i], &data1[i], &data2[i], i, power);
         av_power[0] =  av_power[0] + power[0];
@@ -343,8 +288,8 @@ write_mbed('1', &file_i2c); // initialise and synchronise data aquistion on mbed
     direction(av_power);
     
 
-	duration = (clock() - time) / (double)CLOCKS_PER_SEC; // time run - note does not seem to time data collection correctly
-	cout << " time taken:: " << duration << endl;
+	//duration = (clock() - time) / (double)CLOCKS_PER_SEC; // time run - note does not seem to time data collection correctly
+	//cout << " time taken:: " << duration << endl;
     /*for (int i = 0; i < buffer_length; ++i)
     {
       cout << data[i] << endl;
