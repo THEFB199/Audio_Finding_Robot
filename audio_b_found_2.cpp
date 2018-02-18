@@ -5,8 +5,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <unistd.h>			//Used for UART
+//#include <fcntl.h>			//Used for UART
+#include <termios.h>		//Used for UART
+
 //#define sample_time 0.0100
-#define buffer_length 256
+#define buffer_length 128
 #include <time.h>
 #include <iostream>
 #include <complex>
@@ -17,33 +21,36 @@ typedef complex<double> Complex;
 typedef valarray<Complex> CArray;
 const double PI = 3.141592653589793238460; // Pi constant with double precision
 
-#define i2c_addr 0x50 // address of the mbed sudo i2cdetect -y 0
-
-void connect(int * file_i2c);
+#define mbed_i2c_addr 0x50 // address of the mbed sudo i2cdetect -y 0
+#define ardui_addr 0x29
+void connect(int * file_i2c, int addr);
 void write_mbed(char data, int *file_i2c);
 float read_float(int length, int *file_i2c);
 void fft(CArray &x);
 void data_collection (Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3, int *file_i2c);
-void power_calc(Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3, int index_pos, double *power);
+void power_calc(Complex mic_data_1, Complex mic_data_2, Complex mic_data_3, int index_pos, double *power);
 void index_pos(int n, int freq_low, int freq_high, double sample_freq, int *bounds);
-int direction(double *powers);
-void control(int file_i2c); // to make main less messy.
+int direction(double *powers, int *file_i2c);
+void control(int file_i2c, int ard_i2c); // to make main less messy.
 
 int main(){
     cout << "Proggy Start" << endl;
     cout << "Connect to mbed" << endl;
     int file_i2c;
-    connect(&file_i2c); // establish connection with mbed
-    cout << "connection established" << endl;
+    int ard_i2c;
+    connect(&file_i2c, mbed_i2c_addr); // establish connection with mbed
+    connect(&ard_i2c, ardui_addr);
     
     while(1){
     
-        control(file_i2c);
+        control(file_i2c, ard_i2c);
     
     }
 }
 
-void connect(int *file_i2c){
+
+
+void connect(int *file_i2c, int addr){
 	//----- OPEN THE I2C BUS -----
 	char *filename = (char*)"/dev/i2c-0";
 	if ((*file_i2c = open(filename, O_RDWR)) < 0)
@@ -53,7 +60,7 @@ void connect(int *file_i2c){
 		//return;
 	}
 	
-	int addr = i2c_addr;          //<<<<<The I2C address of the slave
+	//int addr = i2c_addr;          //<<<<<The I2C address of the slave
 	if (ioctl(*file_i2c, I2C_SLAVE, addr) < 0)
 	{
 		printf("Failed to acquire bus access and/or talk to slave.\n");
@@ -89,6 +96,7 @@ void write_mbed(char data, int *file_i2c){
 	}
 
 }
+
 
 // Cooley-Tukey FFT (in-place, breadth-first, decimation-in-frequency)
 // Better optimized but less intuitive
@@ -155,13 +163,16 @@ void data_collection (Complex *mic_data_1, Complex *mic_data_2, Complex *mic_dat
 	while (i < buffer_length) {
 
 	    mic1 = read_float(10, file_i2c);
+	    //cout << mic1 << endl;
 		mic_data_1[i] = (Complex) mic1;
 
 	    mic2 = read_float(10, file_i2c);
+	    //cout << mic2 << endl;
         mic_data_2[i] = (Complex) mic2;
 
 
 	    mic3 = read_float(10, file_i2c);
+	    //cout << mic3 << endl;
 		mic_data_3[i] = (Complex) mic3;
 		i++;
         done  = (float)i / (float)buffer_length; // how far through data collection are we?
@@ -171,13 +182,15 @@ void data_collection (Complex *mic_data_1, Complex *mic_data_2, Complex *mic_dat
 
 }
 
-void power_calc(Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3, int index_pos, double *power){
+void power_calc(Complex mic_data_1, Complex mic_data_2, Complex mic_data_3, int index_pos, double *power){
+   // cout << mic_data_2 << endl;
     
-    power[0] = sqrt( pow(mic_data_1[index_pos].real(), 2.0) + pow(mic_data_1[index_pos].imag(), 2.0) );
-    power[1] = sqrt( pow(mic_data_2[index_pos].real(), 2.0) + pow(mic_data_2[index_pos].imag(), 2.0) );
-    power[2] = sqrt( pow(mic_data_3[index_pos].real(), 2.0) + pow(mic_data_3[index_pos].imag(), 2.0) );
-
+    power[0] = sqrt( pow(mic_data_1.real(), 2.0) + pow(mic_data_1.imag(), 2.0) );
+    power[1] = sqrt( pow(mic_data_2.real(), 2.0) + pow(mic_data_2.imag(), 2.0) );
+    power[2] = sqrt( pow(mic_data_3.real(), 2.0) + pow(mic_data_3.imag(), 2.0) );
+    //cout << mic_data_2 << endl;
     //cout << power_mic_1 << endl;
+    //cout << power[0]<< endl;
     //cout << power[1]<< endl;
     //cout << power_mic_3 << endl;
 
@@ -204,7 +217,7 @@ void index_pos(int n, int freq_low, int freq_high, double sample_freq, int *boun
 
 }
 
-int direction(double *powers){
+int direction(double *powers, int *file_i2c){
     
     //powers[0] - mic 1 ( front left )
     //powers[1] - mic 2 ( front right )
@@ -212,29 +225,35 @@ int direction(double *powers){
 
     if(powers[0] > powers[1]){ // should we go left or right?
     
-        cout << "left" << endl; 
+        cout << "left" << endl;
+
+        write_mbed('1', file_i2c);  
         // code to send to robot
     }
     else if(powers[1] > powers[0]){
     
         cout << "right" << endl;
+        write_mbed('2', file_i2c); 
         // code to send to robot
     }
     else if(powers[1] == powers[0]){
     
         cout << "forwards!" << endl;
+
+        write_mbed('3', file_i2c); 
     }
     else if((powers[2] > powers[0]) && (powers[2] > powers[1])){ // robot facing wrong way
     
         cout << "backwards!" << endl;
+        //write_ard('1', file_i2c); 
     }
     
 
 }
 
-void control(int file_i2c){
+void control(int file_i2c, int ard_i2c){
 
-    write_mbed('1', &file_i2c); // initialise and synchronise data aquistion on mbed
+    write_mbed('A', &file_i2c); // initialise and synchronise data aquistion on mbed
 
     clock_t time;
 	double duration;
@@ -243,9 +262,9 @@ void control(int file_i2c){
 	double av_power[3] = {0};
 	float r;
     // complex arrays for each microphone for FFT done later
-	Complex mic_data_1[buffer_length]={0}; // initialise to zero for ease of FFT 
-	Complex mic_data_2[buffer_length]={0};
-	Complex mic_data_3[buffer_length]={0};
+	Complex mic_data_1[buffer_length]={0}; // initialise to zero for ease of FFT //front left
+	Complex mic_data_2[buffer_length]={0}; // front right
+	Complex mic_data_3[buffer_length]={0}; // back
 	
 	time = clock(); // begin timerp
 	
@@ -254,7 +273,6 @@ void control(int file_i2c){
 	duration = (clock() - time)/ (double)CLOCKS_PER_SEC; // time run - note does not
     cout << "time taken:: " << duration << endl;
     double sample_freq = (double)buffer_length/duration;
-    
     
     // CArray needed for compatibility with FFT algorithm used.
 	CArray data(mic_data_1, buffer_length);
@@ -267,34 +285,43 @@ void control(int file_i2c){
 	fft(data1);
 	fft(data2);
 	
-	
+
 	// Calculate power of each microphone.
 	// Using average from frequcnies set out in index pos function.
 	// Average claculation may be incorrect !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	index_pos(buffer_length, 2200, 2600, sample_freq, data_test);
 	//cout << data_test[0] << " " << data_test[1] << endl;
 	for ( int i = data_test[0]; i <= data_test[1]; i++){
-	    power_calc(&data[i], &data1[i], &data2[i], i, power);
+	    //cout << data1[i] << endl;
+	    power_calc(data[i], data1[i], data2[i], i, power);
         av_power[0] =  av_power[0] + power[0];
         av_power[1] =  av_power[1] + power[1];
         av_power[2] =  av_power[2] + power[2];
 	}
 	// Taking the average
 	av_power[0] = av_power[0]/(double)(data_test[1]-data_test[0]);
+	//cout << av_power[0] << endl;
     av_power[1] = av_power[1]/(double)(data_test[1]-data_test[0]);
+	cout << av_power[0] << endl;
     av_power[2] = av_power[2]/(double)(data_test[1]-data_test[0]);
+	cout << av_power[1] << endl;
 
     // Decide the direction to travel.
-    direction(av_power);
-    
+    direction(av_power, &file_i2c);
+    sleep(0.5);
 
 	//duration = (clock() - time) / (double)CLOCKS_PER_SEC; // time run - note does not seem to time data collection correctly
 	//cout << " time taken:: " << duration << endl;
-    /*for (int i = 0; i < buffer_length; ++i)
+    /*
+    for (int i = 0; i < buffer_length; ++i)
     {
-      cout << data[i] << endl;
-    }*/
+      cout << mic_data_1[i] << endl;
+      cout << mic_data_2[i] << endl;
+      cout << mic_data_3[i] << endl;
+      cout << endl;
+      sleep(0.5);
+    }
 
-    //
+    // */
 
 }
