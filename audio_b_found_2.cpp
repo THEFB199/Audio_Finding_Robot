@@ -5,12 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <unistd.h>			//Used for UART
-//#include <fcntl.h>			//Used for UART
-#include <termios.h>		//Used for UART
-
 //#define sample_time 0.0100
-#define buffer_length 128
+#define buffer_length 512
 #include <time.h>
 #include <iostream>
 #include <complex>
@@ -22,7 +18,7 @@ typedef valarray<Complex> CArray;
 const double PI = 3.141592653589793238460; // Pi constant with double precision
 
 #define mbed_i2c_addr 0x50 // address of the mbed sudo i2cdetect -y 0
-#define ardui_addr 0x29
+#define ardui_addr 0x04 // sudo i2cdetect -y 1
 void connect(int * file_i2c, int addr);
 void write_mbed(char data, int *file_i2c);
 float read_float(int length, int *file_i2c);
@@ -31,19 +27,19 @@ void data_collection (Complex *mic_data_1, Complex *mic_data_2, Complex *mic_dat
 void power_calc(Complex mic_data_1, Complex mic_data_2, Complex mic_data_3, int index_pos, double *power);
 void index_pos(int n, int freq_low, int freq_high, double sample_freq, int *bounds);
 int direction(double *powers, int *file_i2c);
-void control(int file_i2c, int ard_i2c); // to make main less messy.
+void control(int file_i2c); // to make main less messy.
 
 int main(){
     cout << "Proggy Start" << endl;
     cout << "Connect to mbed" << endl;
     int file_i2c;
-    int ard_i2c;
-    connect(&file_i2c, mbed_i2c_addr); // establish connection with mbed
-    connect(&ard_i2c, ardui_addr);
+    //int ard_i2c;
+    //connect(&file_i2c, mbed_i2c_addr); // establish connection with mbed
+    connect(&file_i2c, ardui_addr);
     
     while(1){
     
-        control(file_i2c, ard_i2c);
+        control(file_i2c);
     
     }
 }
@@ -52,7 +48,7 @@ int main(){
 
 void connect(int *file_i2c, int addr){
 	//----- OPEN THE I2C BUS -----
-	char *filename = (char*)"/dev/i2c-0";
+	char *filename = (char*)"/dev/i2c-1";
 	if ((*file_i2c = open(filename, O_RDWR)) < 0)
 	{   printf("%i\n", *file_i2c);
 		//ERROR HANDLING: you can check errno to see what went wrong
@@ -80,7 +76,7 @@ float read_float(int length, int *file_i2c){
 	}
 	else
 	{
-        return(atof(buffer1)); // return floating point number for data later - data is recieved as a char. 
+        return(buffer1[0]); // return floating point number for data later - data is recieved as a char. 
 	}
 }
 
@@ -153,7 +149,7 @@ void fft(CArray &x)
 void data_collection (Complex *mic_data_1, Complex *mic_data_2, Complex *mic_data_3, int *file_i2c){
 
     int i = 0;
-    float mic1, mic2, mic3;
+    int mic1, mic2, mic3;
     //int 
     
     float done;
@@ -162,16 +158,16 @@ void data_collection (Complex *mic_data_1, Complex *mic_data_2, Complex *mic_dat
     // start data acqusition from mbed (due to no analogue inputs on pi)
 	while (i < buffer_length) {
 
-	    mic1 = read_float(10, file_i2c);
+	    mic1 = read_float(1, file_i2c);
 	    //cout << mic1 << endl;
 		mic_data_1[i] = (Complex) mic1;
 
-	    mic2 = read_float(10, file_i2c);
+	    mic2 = read_float(1, file_i2c);
 	    //cout << mic2 << endl;
         mic_data_2[i] = (Complex) mic2;
 
 
-	    mic3 = read_float(10, file_i2c);
+	    mic3 = read_float(1, file_i2c);
 	    //cout << mic3 << endl;
 		mic_data_3[i] = (Complex) mic3;
 		i++;
@@ -225,15 +221,15 @@ int direction(double *powers, int *file_i2c){
 
     if(powers[0] > powers[1]){ // should we go left or right?
     
-        cout << "left" << endl;
-
-        write_mbed('1', file_i2c);  
+               cout << "left" << endl;
+        write_mbed('1', file_i2c); 
         // code to send to robot
     }
     else if(powers[1] > powers[0]){
-    
-        cout << "right" << endl;
-        write_mbed('2', file_i2c); 
+     cout << "right" << endl;
+
+        write_mbed('2', file_i2c);  
+
         // code to send to robot
     }
     else if(powers[1] == powers[0]){
@@ -243,15 +239,17 @@ int direction(double *powers, int *file_i2c){
         write_mbed('3', file_i2c); 
     }
     else if((powers[2] > powers[0]) && (powers[2] > powers[1])){ // robot facing wrong way
-    
-        cout << "backwards!" << endl;
-        //write_ard('1', file_i2c); 
+        for(int i = 0; i <50; i++){
+                cout << "backwards!" << endl;
+                write_mbed('1', file_i2c); 
+                sleep(0.5);
+        }
     }
     
 
 }
 
-void control(int file_i2c, int ard_i2c){
+void control(int file_i2c){
 
     write_mbed('A', &file_i2c); // initialise and synchronise data aquistion on mbed
 
