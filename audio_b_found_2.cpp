@@ -233,7 +233,9 @@ int direction(double *powers, int *file_i2c){
         cout << "right" << endl;
         write_mbed('2', file_i2c);  
     }
-    else if((powers[2] > powers[0]) && (powers[2] > powers[1])){ // robot facing wrong way
+    if((powers[2] > (powers[0]*2)) && (powers[2] > (powers[1])*2)){ // robot facing wrong way
+        cout << "Back" << endl;
+        sleep(0.5);
         write_mbed('4', file_i2c); 
         sleep(5);
     }
