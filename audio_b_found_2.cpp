@@ -6,7 +6,8 @@
 #include <stdlib.h>
 
 //#define sample_time 0.0100
-#define buffer_length 512
+#define buffer_length 256
+#define threashold 7 // how many times as loud as the first value to change over
 #include <time.h>
 #include <iostream>
 #include <complex>
@@ -27,19 +28,21 @@ void data_collection (Complex *mic_data_1, Complex *mic_data_2, Complex *mic_dat
 void power_calc(Complex mic_data_1, Complex mic_data_2, Complex mic_data_3, int index_pos, double *power);
 void index_pos(int n, int freq_low, int freq_high, double sample_freq, int *bounds);
 int direction(double *powers, int *file_i2c);
-void control(int file_i2c); // to make main less messy.
+void control(int file_i2c, int first, double *change); // to make main less messy.
 
 int main(){
     cout << "Proggy Start" << endl;
     cout << "Connect to mbed" << endl;
     int file_i2c;
+    double change[3];
+    int first = 1;
     //int ard_i2c;
     //connect(&file_i2c, mbed_i2c_addr); // establish connection with mbed
     connect(&file_i2c, ardui_addr);
-    
     while(1){
     
-        control(file_i2c);
+        control(file_i2c, first, change);
+        first = 0;
     
     }
 }
@@ -218,42 +221,31 @@ int direction(double *powers, int *file_i2c){
     //powers[0] - mic 1 ( front left )
     //powers[1] - mic 2 ( front right )
     //powers[2] - mic 3 ( back middle )
-
-    if(powers[0] > powers[1]){ // should we go left or right?
-    
-               cout << "left" << endl;
-        write_mbed('1', file_i2c); 
-        // code to send to robot
-    }
-    else if(powers[1] > powers[0]){
-     cout << "right" << endl;
-
-        write_mbed('2', file_i2c);  
-
-        // code to send to robot
-    }
-    else if(powers[1] == powers[0]){
-    
+    if(abs(((((powers[1]) -(powers[0]))/(powers[1]))*100)) < (double)30.0){ // are the mic's within 10% of each other? 
         cout << "forwards!" << endl;
-
         write_mbed('3', file_i2c); 
     }
+    else if(powers[0] > powers[1]){ // should we go left or right?
+       cout << "left" << endl;
+        write_mbed('1', file_i2c); 
+    }
+    else if(powers[1] > powers[0]){
+        cout << "right" << endl;
+        write_mbed('2', file_i2c);  
+    }
     else if((powers[2] > powers[0]) && (powers[2] > powers[1])){ // robot facing wrong way
-        for(int i = 0; i <50; i++){
-                cout << "backwards!" << endl;
-                write_mbed('1', file_i2c); 
-                sleep(0.5);
-        }
+        write_mbed('4', file_i2c); 
+        sleep(5);
     }
     
 
 }
 
-void control(int file_i2c){
+void control(int file_i2c, int first, double *change){
 
-    write_mbed('A', &file_i2c); // initialise and synchronise data aquistion on mbed
+        write_mbed('A', &file_i2c); // initialise and synchronise data aquistion on mbed
 
-    clock_t time;
+        clock_t time;
 	double duration;
 	int data_test[2] = {0};
 	double power[3] = {0};
@@ -299,14 +291,22 @@ void control(int file_i2c){
 	// Taking the average
 	av_power[0] = av_power[0]/(double)(data_test[1]-data_test[0]);
 	//cout << av_power[0] << endl;
-    av_power[1] = av_power[1]/(double)(data_test[1]-data_test[0]);
+        av_power[1] = av_power[1]/(double)(data_test[1]-data_test[0]);
 	cout << av_power[0] << endl;
-    av_power[2] = av_power[2]/(double)(data_test[1]-data_test[0]);
+        av_power[2] = av_power[2]/(double)(data_test[1]-data_test[0]);
 	cout << av_power[1] << endl;
-
-    // Decide the direction to travel.
-    direction(av_power, &file_i2c);
-    sleep(0.5);
+        
+        if(first == 1){
+               change[0] = av_power[0];
+               change[1] = av_power[1];
+        }
+        
+       if ((change[0] >= threashold*change[0]) && (change[1] >= threashold*change[1]) ){
+                write_mbed('9', &file_i2c);  
+       }
+        // Decide the direction to travel.
+        direction(av_power, &file_i2c);
+        sleep(0.5);
 
 	//duration = (clock() - time) / (double)CLOCKS_PER_SEC; // time run - note does not seem to time data collection correctly
 	//cout << " time taken:: " << duration << endl;
