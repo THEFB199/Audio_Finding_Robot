@@ -6,22 +6,29 @@ int number = 0;
 int mic1;
 int mic2;
 int mic3;
+char start = 'n';
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600); // start serial for output
   // initialize i2c as slave
   Wire.begin(SLAVE_ADDRESS);
 
+  while(start != 'y'){
+    start = Serial.read();
+  }
+  
   // define callbacks for i2c communication
   Wire.onReceive(receiveData);
   Wire.onRequest(sendData);
+
 }
 
 void loop() {
+
   // put your main code here, to run repeatedly:
-  mic1 = analogRead(A0)-20; // dunno why needs -20
-  mic2 = analogRead(A1);
-  mic3 = analogRead(A2);
+  mic1 = analogRead(A0) - 20; // dunno why needs -20
+  mic3 = analogRead(A1);
+  mic2 = analogRead(A2);
   delay(1); // for stability
 }
 
@@ -30,10 +37,10 @@ void receiveData(int byteCount) {
     number = Wire.read();
     //Serial.print("number:");
     //Serial.println((char)number);
-    if( (char)number == 'A' ){
+    if ( (char)number == 'A' ) {
       n = 1;
     }
-    else{
+    else {
       Serial.write((char)number);
     }
   }
@@ -61,7 +68,7 @@ void sendData() {
     n = 3;
   }
   else if (n == 3) {
-     if (mic3 > 255) {
+    if (mic3 > 255) {
       mic3 = 255;
     }
     if (mic3 < 0) {
