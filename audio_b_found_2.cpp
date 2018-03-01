@@ -6,8 +6,8 @@
 #include <stdlib.h>
 
 //#define sample_time 0.0100
-#define buffer_length 256
-#define threashold 7 // how many times as loud as the first value to change over
+#define buffer_length 512
+#define threashold 7// how many times as loud as the first value to change over
 #include <time.h>
 #include <iostream>
 #include <complex>
@@ -221,17 +221,17 @@ int direction(double *powers, int *file_i2c){
     //powers[0] - mic 1 ( front left )
     //powers[1] - mic 2 ( front right )
     //powers[2] - mic 3 ( back middle )
-    if(abs(((((powers[1]) -(powers[0]))/(powers[1]))*100)) < (double)30.0){ // are the mic's within 10% of each other? 
+    if(abs(((((powers[1]) -(powers[0]))/(powers[1]))*100)) < (double)15.0){ // are the mic's within 10% of each other? 
         cout << "forwards!" << endl;
         write_mbed('3', file_i2c); 
     }
     else if(powers[0] > powers[1]){ // should we go left or right?
        cout << "left" << endl;
-        write_mbed('1', file_i2c); 
+        write_mbed('2', file_i2c); 
     }
     else if(powers[1] > powers[0]){
         cout << "right" << endl;
-        write_mbed('2', file_i2c);  
+        write_mbed('1', file_i2c);  
     }
     if((powers[2] > (powers[0]*2)) && (powers[2] > (powers[1])*2)){ // robot facing wrong way
         cout << "Back" << endl;
@@ -303,8 +303,9 @@ void control(int file_i2c, int first, double *change){
                change[1] = av_power[1];
         }
         
-       if ((change[0] >= threashold*change[0]) && (change[1] >= threashold*change[1]) ){
+       if ((av_power[0] >= threashold*change[0]) && (av_power[1] >= threashold*change[1]) ){
                 write_mbed('9', &file_i2c);  
+                //for( i=0; i<100; i++){ cout << "CHANGE!!" << end; }
        }
         // Decide the direction to travel.
         direction(av_power, &file_i2c);
