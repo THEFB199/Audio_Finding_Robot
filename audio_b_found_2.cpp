@@ -7,7 +7,7 @@
 
 //#define sample_time 0.0100
 #define buffer_length 512
-#define threashold 7// how many times as loud as the first value to change over
+#define threashold 5.5// how many times as loud as the first value to change over
 #include <time.h>
 #include <iostream>
 #include <complex>
@@ -32,13 +32,14 @@ void control(int file_i2c, int first, double *change); // to make main less mess
 
 int main(){
     cout << "Proggy Start" << endl;
-    cout << "Connect to mbed" << endl;
+    cout << "Connect to arduino" << endl;
     int file_i2c;
-    double change[3];
+    double change[4];
     int first = 1;
     //int ard_i2c;
     //connect(&file_i2c, mbed_i2c_addr); // establish connection with mbed
     connect(&file_i2c, ardui_addr);
+    while(read_float(1, &file_i2c) == 0){} // wait to start
     while(1){
     
         control(file_i2c, first, change);
@@ -161,11 +162,11 @@ void data_collection (Complex *mic_data_1, Complex *mic_data_2, Complex *mic_dat
     // start data acqusition from mbed (due to no analogue inputs on pi)
 	while (i < buffer_length) {
 
-	    mic1 = read_float(1, file_i2c);
+	    mic1 = read_float(1, file_i2c) - 20;
 	    //cout << mic1 << endl;
 		mic_data_1[i] = (Complex) mic1;
 
-	    mic2 = read_float(1, file_i2c);
+	    mic2 = read_float(1, file_i2c) + 15;
 	    //cout << mic2 << endl;
         mic_data_2[i] = (Complex) mic2;
 
@@ -221,9 +222,10 @@ int direction(double *powers, int *file_i2c){
     //powers[0] - mic 1 ( front left )
     //powers[1] - mic 2 ( front right )
     //powers[2] - mic 3 ( back middle )
-    if(abs(((((powers[1]) -(powers[0]))/(powers[1]))*100)) < (double)15.0){ // are the mic's within 10% of each other? 
+    if(abs(((((powers[1]) -(powers[0]))/(powers[1]))*100)) < (double)10.0){ // are the mic's within 10% of each other? 
         cout << "forwards!" << endl;
         write_mbed('3', file_i2c); 
+        sleep(0.5);
     }
     else if(powers[0] > powers[1]){ // should we go left or right?
        cout << "left" << endl;
@@ -233,11 +235,12 @@ int direction(double *powers, int *file_i2c){
         cout << "right" << endl;
         write_mbed('1', file_i2c);  
     }
-    if((powers[2] > (powers[0]*2)) && (powers[2] > (powers[1])*2)){ // robot facing wrong way
+    if((powers[2] > (powers[0]*1.2)) && (powers[2] > (powers[1])*1.2) ){ // robot facing wrong way
+        sleep(0.5);
         cout << "Back" << endl;
         sleep(0.5);
         write_mbed('4', file_i2c); 
-        sleep(5);
+        sleep(3);
     }
     
 
@@ -294,17 +297,26 @@ void control(int file_i2c, int first, double *change){
 	av_power[0] = av_power[0]/(double)(data_test[1]-data_test[0]);
 	//cout << av_power[0] << endl;
         av_power[1] = av_power[1]/(double)(data_test[1]-data_test[0]);
-	cout << av_power[0] << endl;
+
         av_power[2] = av_power[2]/(double)(data_test[1]-data_test[0]);
+	cout << av_power[0] << endl;
 	cout << av_power[1] << endl;
+	cout << av_power[2] << endl;
         
         if(first == 1){
-               change[0] = av_power[0];
-               change[1] = av_power[1];
+               change[0] = 690.0;//av_power[0];
+               change[1] = 0.0;//av_power[1];
         }
         
-       if ((av_power[0] >= threashold*change[0]) && (av_power[1] >= threashold*change[1]) ){
-                write_mbed('9', &file_i2c);  
+       if ((av_power[0] >= change[0]) && (av_power[1] >= change[0]) ){
+                if((int)change[1] == 3){
+                        cout << "change" << endl;
+                        write_mbed('9', &file_i2c);  
+                }
+                else{
+                        change[1]++;
+                        cout << change[1] << endl;
+                }
                 //for( i=0; i<100; i++){ cout << "CHANGE!!" << end; }
        }
         // Decide the direction to travel.
